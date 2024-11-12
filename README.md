@@ -1,147 +1,122 @@
 # auth
 
 ```code
-npx create-next-app@14
+const handleSubmit = async (e) => {
+        e.preventDefault();
+        const response = await fetch('http://localhost:8080/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            credentials: 'include',
+            body: new URLSearchParams({
+                username: username,
+                password: password
+            }).toString()
+        });
+        
+        const data = await response.json();
+        console.log(data);
+        setTimeout(() => {
+            nav('/profile');
+        }, 1000);
+    }
 ```
 
-https://www.creative-tim.com/twcomponents/cheatsheet/
-
-input field
+security
 ```code
-'use client'
-import { FieldHookConfig, useField } from "formik";
+package com.siemens.test.config;
+
+import com.siemens.test.service.CustomUserDetailsService;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.LogoutConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+
+import java.util.Arrays;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final CustomUserDetailsService userDetailsService;
+
+    public SecurityConfig(CustomUserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(AbstractHttpConfigurer::disable) // Disables CSRF protection
+                .cors(Customizer.withDefaults())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/login", "/register").permitAll() // Allows access to login and register endpoints
+                        .anyRequest().authenticated() // Requires authentication for any other request
+                )
+                .formLogin(form -> form
+                        .loginPage("/login") // Custom login page
+                        .defaultSuccessUrl("/user", true) // Redirects to /home after successful login
+                        .permitAll() // Allows access to the login page without authentication
+                )
+                .logout(LogoutConfigurer::permitAll) // Allows access to logout without authentication
+                .sessionManagement(session -> session
+                        .maximumSessions(1) // Limits to one session per user
+                        .expiredUrl("/login?expired=true") // Redirects to login page if session expires
+                );
+
+        return http.build();
+    }
 
 
-interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
-    label: string;
-    isUpdate?: boolean;
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+
+    protected void configure(AuthenticationManagerBuilder auth) {
+        auth.authenticationProvider(authenticationProvider());
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration corsConfig = new CorsConfiguration();
+        corsConfig.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        corsConfig.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
+        corsConfig.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", corsConfig);
+
+        return source;
+    }
+
 }
 
-export const InputField: React.FC<InputFieldProps> = ({ label, isUpdate = false, ...props }) => {
-    const [field, meta] = useField(props as FieldHookConfig<string>);
-
-    return (
-        <fieldset className={`p-4 border text-black rounded ${isUpdate ? 'bg-gray-100' : ''}`}>
-            <label htmlFor={props.id || props.name} className="block text-sm font-medium text-gray-700 mb-2">
-                {label}
-            </label>
-            <input
-                className={`w-full p-2 border ${meta.touched && meta.error ? 'border-red-500' : 'border-gray-300'} rounded`}
-                {...field}
-                {...props}
-            />
-            {meta.touched && meta.error ? (
-                <div className="text-red-500 text-sm mt-1">{meta.error}</div>
-            ) : null}
-        </fieldset>
-    );
-}
-
-export default InputField;
 ```
-
-form
-```code
-'use client'
-import * as Yup from 'yup';
-import { Formik, Form } from "formik";
-import Link from "next/link";
-import { InputField } from "./input-field";
-
-export const LoginForm = () => {
-
-  const validationSchema = Yup.object({
-    identifier: Yup.string()
-      .required('This field is required')
-      .test('identifier', 'Invalid email or username', (value) => {
-        if (value) {
-          const usernameRegex = /^[\w_]{3,30}$/;
-          if (usernameRegex.test(value)) {
-            return true;
-          }
-          const emailRegex = /^[\w._-]+@[\w.]+\.[\w]{2,4}$/;
-          if (emailRegex.test(value)) {
-            return true;
-          }
-        }
-        return false;
-      }),
-    password: Yup.string()
-      .required('This field is required')
-      .min(5, 'Password must be at least 5 characters long')
-  });
-
-  const submit = async (data: any) => {
-    console.log(data);
-    /*
-    const response = await fetch(
-    "http://localhost:8006", {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-})
-    */
-
-  };
-
-  return (
-    <div>
-      <div>
-        <Formik initialValues={{
-          identifier: '',
-          password: '',
-        }}
-          validationSchema={validationSchema}
-          onSubmit={async (values, { setSubmitting }) => {
-            await submit(values);
-            setSubmitting(false);
-          }}
-        >
-          {({ isSubmitting }) => (
-            <Form>
-              <h1>LOG IN</h1>
-              <InputField label='Email or username' name='identifier' type='text' />
-              <InputField label='Password' name='password' type='password' />
-              <div>
-                Don't have an account ?
-                <Link href='/register'>Register</Link>
-              </div>
-              <button type='submit' disabled={isSubmitting}>Log In</button>
-            </Form>
-          )}
-        </Formik>
-      </div>
-    </div>
-  )
-}
-
-export default function Home() {
-  return (
-    <div>
-      <div>
-        <LoginForm />
-      </div>
-    </div>
-  );
-}
-```
-
-
-prop
-```code
-server.port=8006
-spring.application.name=test
-
-
-spring.jpa.hibernate.ddl-auto=update
-
-spring.datasource.url=jdbc:mysql://localhost:3306/testdb
-spring.datasource.username=root
-spring.datasource.password=123456
-```
-
 
 
 
